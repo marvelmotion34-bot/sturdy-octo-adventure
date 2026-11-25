@@ -1,0 +1,38 @@
+name: Windows RDP via Tailscale
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Set up User Account
+        run: |
+          net user Administrator P@ssword123! /add
+          net localgroup Administrators Administrator /add
+          
+      - name: Enable Remote Desktop
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      - name: Connect to Tailscale Network
+        shell: powershell
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          # Install Tailscale via Chocolatey package manager
+          choco install tailscale -y
+          
+          # Initialize the connection joining your private mesh network
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --accept-routes
+          
+          # Output the private internal IP address assigned to this runner VM
+          $MachineIP = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
+          
+          Write-Host "=========================================================="
+          Write-Host "CONNECT DIRECTLY TO THE PRIVATE IP:" -ForegroundColor Green
+          Write-Host $MachineIP -ForegroundColor Cyan
+          Write-Host "=========================================================="
+          Write-Host "Note: Your local machine must have Tailscale turned on to connect."
+          
+          while ($true) { Start-Sleep -Seconds 60 }
